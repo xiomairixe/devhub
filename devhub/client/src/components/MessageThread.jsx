@@ -2,11 +2,15 @@ import { useState, useEffect, useRef } from 'react';
 import { Send } from 'lucide-react';
 import { io } from 'socket.io-client';
 import { useAuth } from '../context/AuthContext';
+import api from '../utils/api';
 
 let socket;
 function getSocket() {
   if (!socket) {
-    socket = io(import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000');
+    const base =
+      import.meta.env.VITE_API_URL?.replace('/api', '') ||
+      'http://localhost:5000';
+    socket = io(base, { withCredentials: true });
   }
   return socket;
 }
@@ -18,21 +22,21 @@ export default function MessageThread({ projectId, clientUserId }) {
   const [loading,  setLoading]  = useState(true);
   const [sending,  setSending]  = useState(false);
   const bottomRef  = useRef(null);
-  const pendingRef = useRef(new Set()); // track optimistic temp IDs
-  const token      = localStorage.getItem('token');
+  const pendingRef = useRef(new Set());
 
   const room     = projectId ? `project:${projectId}` : `direct:${clientUserId}`;
   const fetchUrl = projectId
-    ? `/api/messages/project/${projectId}`
-    : `/api/messages/direct/${clientUserId}`;
+    ? `/messages/project/${projectId}`
+    : `/messages/direct/${clientUserId}`;
 
   // Fetch initial messages
   useEffect(() => {
     if (!projectId && !clientUserId) return;
     setLoading(true);
-    fetch(fetchUrl, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.json())
-      .then(data => setMessages(Array.isArray(data) ? data : []))
+    api
+      .get(fetchUrl)
+      .then(res => setMessages(Array.isArray(res.data) ? res.data : []))
+      .catch(() => setMessages([]))
       .finally(() => setLoading(false));
   }, [fetchUrl]);
 
@@ -41,24 +45,23 @@ export default function MessageThread({ projectId, clientUserId }) {
     const s = getSocket();
     s.emit('join_room', room);
 
-    s.on('new_message', (msg) => {
+    s.on('new_message', msg => {
       const belongs = projectId
         ? String(msg.projectId) === String(projectId)
-        : !msg.projectId && String(msg.clientUserId) === String(clientUserId);
+        : !msg.projectId &&
+          String(msg.clientUserId) === String(clientUserId);
 
       if (!belongs) return;
 
       setMessages(prev => {
-        // If this real message matches a pending optimistic one, replace it
         if (pendingRef.current.size > 0) {
           const tempId = [...pendingRef.current][0];
           const hasTemp = prev.find(m => m._id === tempId);
           if (hasTemp) {
             pendingRef.current.delete(tempId);
-            return prev.map(m => m._id === tempId ? msg : m);
+            return prev.map(m => (m._id === tempId ? msg : m));
           }
         }
-        // Otherwise only add if not already present
         if (prev.find(m => m._id === msg._id)) return prev;
         return [...prev, msg];
       });
@@ -84,7 +87,6 @@ export default function MessageThread({ projectId, clientUserId }) {
     const tempId = `temp-${Date.now()}`;
     pendingRef.current.add(tempId);
 
-    // Optimistic message
     const optimistic = {
       _id:        tempId,
       body:       trimmed,
@@ -95,18 +97,12 @@ export default function MessageThread({ projectId, clientUserId }) {
     setMessages(prev => [...prev, optimistic]);
 
     try {
-      await fetch('/api/messages', {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body:    JSON.stringify({
-          body:         trimmed,
-          projectId:    projectId || null,
-          clientUserId: clientUserId || null,
-        }),
+      await api.post('/messages', {
+        body:         trimmed,
+        projectId:    projectId || null,
+        clientUserId: clientUserId || null,
       });
-      // Socket will fire new_message which replaces the optimistic one
     } catch {
-      // Remove optimistic on failure
       pendingRef.current.delete(tempId);
       setMessages(prev => prev.filter(m => m._id !== tempId));
       setInput(trimmed);
@@ -115,14 +111,14 @@ export default function MessageThread({ projectId, clientUserId }) {
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = e => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
     }
   };
 
-  const isMe = (msg) => msg.senderRole === user?.role;
+  const isMe = msg => msg.senderRole === user?.role;
 
   return (
     <div className="flex flex-col h-[420px]">
@@ -137,15 +133,27 @@ export default function MessageThread({ projectId, clientUserId }) {
           </p>
         ) : (
           messages.map(msg => (
-            <div key={msg._id} className={`flex ${isMe(msg) ? 'justify-end' : 'justify-start'}`}>
-              <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                isMe(msg)
-                  ? 'bg-[#0f172a] text-white rounded-br-sm'
-                  : 'bg-white text-[#0f172a] border border-gray-100 rounded-bl-sm shadow-sm'
-              }`}>
+            <div
+              key={msg._id}
+              className={`flex ${isMe(msg) ? 'justify-end' : 'justify-start'}`}
+            >
+              <div
+                className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                  isMe(msg)
+                    ? 'bg-[#0f172a] text-white rounded-br-sm'
+                    : 'bg-white text-[#0f172a] border border-gray-100 rounded-bl-sm shadow-sm'
+                }`}
+              >
                 <p>{msg.body}</p>
-                <p className={`text-[10px] mt-1 ${isMe(msg) ? 'text-slate-400' : 'text-gray-400'}`}>
-                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                <p
+                  className={`text-[10px] mt-1 ${
+                    isMe(msg) ? 'text-slate-400' : 'text-gray-400'
+                  }`}
+                >
+                  {new Date(msg.createdAt).toLocaleTimeString([], {
+                    hour:   '2-digit',
+                    minute: '2-digit',
+                  })}
                 </p>
               </div>
             </div>
@@ -171,7 +179,8 @@ export default function MessageThread({ projectId, clientUserId }) {
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          className="flex-shrink-0 w-10 h-10 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-colors">
+          className="flex-shrink-0 w-10 h-10 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-colors"
+        >
           <Send size={16} className="text-white" />
         </button>
       </div>
