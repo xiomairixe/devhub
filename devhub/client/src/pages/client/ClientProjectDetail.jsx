@@ -1,47 +1,48 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Calendar, DollarSign, CheckCircle, Circle, FileText, Code2, LogOut } from 'lucide-react';
+import {
+  ArrowLeft, Calendar, DollarSign, CheckCircle,
+  Circle, FileText, Code2, LogOut, MessageSquare
+} from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import MessageThread from '../../components/MessageThread';
 
 const STATUS_STYLES = {
   'In Progress': 'bg-blue-100 text-blue-700',
-  'Pending': 'bg-yellow-100 text-yellow-700',
-  'Done': 'bg-green-100 text-green-700',
-  'On Hold': 'bg-gray-100 text-gray-600',
+  'Pending':     'bg-yellow-100 text-yellow-700',
+  'Done':        'bg-green-100 text-green-700',
+  'On Hold':     'bg-gray-100 text-gray-600',
 };
 
+const TABS = ['Overview', 'Messages'];
+
 export default function ClientProjectDetail() {
-  const { id } = useParams();
-  const navigate = useNavigate();
+  const { id }       = useParams();
+  const navigate     = useNavigate();
   const { user, logout } = useAuth();
-  const [project, setProject] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [project,   setProject]   = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [activeTab, setActiveTab] = useState('Overview');
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     fetch(`/api/projects/portal/${id}`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then(res => res.json())
+      .then(r => r.json())
       .then(data => setProject(data))
       .finally(() => setLoading(false));
   }, [id]);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+  const handleLogout = () => { logout(); navigate('/'); };
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center">
       <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
     </div>
   );
-
   if (!project || project.message) return (
-    <div className="min-h-screen flex items-center justify-center text-gray-400">
-      Project not found
-    </div>
+    <div className="min-h-screen flex items-center justify-center text-gray-400">Project not found</div>
   );
 
   return (
@@ -77,42 +78,27 @@ export default function ClientProjectDetail() {
               {project.status}
             </span>
           </div>
-          {project.description && (
-            <p className="text-gray-500 text-sm mb-5">{project.description}</p>
-          )}
+          {project.description && <p className="text-gray-500 text-sm mb-5">{project.description}</p>}
 
           <div className="grid grid-cols-3 gap-4 mb-5">
             <div>
-              <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                <DollarSign size={12} /> Budget
-              </p>
-              <p className="font-semibold text-sm text-[#0f172a]">
-                ${(project.budget || 0).toLocaleString()}
-              </p>
+              <p className="text-xs text-gray-400 flex items-center gap-1 mb-1"><DollarSign size={12} /> Budget</p>
+              <p className="font-semibold text-sm text-[#0f172a]">${(project.budget || 0).toLocaleString()}</p>
             </div>
             {project.startDate && (
               <div>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <Calendar size={12} /> Start Date
-                </p>
-                <p className="font-semibold text-sm text-[#0f172a]">
-                  {new Date(project.startDate).toLocaleDateString()}
-                </p>
+                <p className="text-xs text-gray-400 flex items-center gap-1 mb-1"><Calendar size={12} /> Start Date</p>
+                <p className="font-semibold text-sm text-[#0f172a]">{new Date(project.startDate).toLocaleDateString()}</p>
               </div>
             )}
             {project.deadline && (
               <div>
-                <p className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                  <Calendar size={12} /> Deadline
-                </p>
-                <p className="font-semibold text-sm text-[#0f172a]">
-                  {new Date(project.deadline).toLocaleDateString()}
-                </p>
+                <p className="text-xs text-gray-400 flex items-center gap-1 mb-1"><Calendar size={12} /> Deadline</p>
+                <p className="font-semibold text-sm text-[#0f172a]">{new Date(project.deadline).toLocaleDateString()}</p>
               </div>
             )}
           </div>
 
-          {/* Progress */}
           <div>
             <div className="flex items-center justify-between text-sm mb-2">
               <span className="text-gray-500">Progress</span>
@@ -125,53 +111,76 @@ export default function ClientProjectDetail() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-5">
-          {/* Milestones */}
-          <div className="card p-5">
-            <h2 className="font-bold text-[#0f172a] text-base mb-4">Milestones</h2>
-            <div className="space-y-2">
-              {(project.milestones || []).map((m, i) => (
-                <div key={i}
-                  className="flex items-center justify-between p-3 border border-gray-100 rounded-xl">
-                  <div className="flex items-center gap-3">
-                    {m.completed
-                      ? <CheckCircle size={18} className="text-green-500 flex-shrink-0" />
-                      : <Circle size={18} className="text-gray-300 flex-shrink-0" />
-                    }
-                    <span className={`text-sm ${m.completed ? 'line-through text-gray-400' : 'text-[#0f172a] font-medium'}`}>
-                      {m.title}
-                    </span>
-                  </div>
-                  {m.dueDate && (
-                    <span className="text-xs text-gray-400">
-                      {new Date(m.dueDate).toLocaleDateString()}
-                    </span>
-                  )}
-                </div>
-              ))}
-              {!project.milestones?.length && (
-                <p className="text-sm text-gray-400 text-center py-4">No milestones yet</p>
-              )}
-            </div>
-          </div>
-
-          {/* Delivery Files */}
-          <div className="card p-5">
-            <h2 className="font-bold text-[#0f172a] text-base mb-4">Delivery Files</h2>
-            <div className="space-y-2">
-              {(project.deliveryFiles || []).map((f, i) => (
-                <a key={i} href={f.url} target="_blank" rel="noreferrer"
-                  className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
-                  <FileText size={18} className="text-gray-400 flex-shrink-0" />
-                  <span className="text-sm text-[#0f172a] truncate">{f.name}</span>
-                </a>
-              ))}
-              {!project.deliveryFiles?.length && (
-                <p className="text-sm text-gray-400 text-center py-4">No files yet</p>
-              )}
-            </div>
-          </div>
+        {/* Tabs */}
+        <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
+          {TABS.map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === tab
+                  ? 'bg-white text-[#0f172a] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {tab === 'Messages' && <MessageSquare size={14} />}
+              {tab}
+            </button>
+          ))}
         </div>
+
+        {/* Tab: Overview */}
+        {activeTab === 'Overview' && (
+          <div className="grid grid-cols-2 gap-5">
+            {/* Milestones */}
+            <div className="card p-5">
+              <h2 className="font-bold text-[#0f172a] text-base mb-4">Milestones</h2>
+              <div className="space-y-2">
+                {(project.milestones || []).map((m, i) => (
+                  <div key={i}
+                    className="flex items-center justify-between p-3 border border-gray-100 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      {m.completed
+                        ? <CheckCircle size={18} className="text-green-500 flex-shrink-0" />
+                        : <Circle     size={18} className="text-gray-300 flex-shrink-0" />
+                      }
+                      <span className={`text-sm ${m.completed ? 'line-through text-gray-400' : 'text-[#0f172a] font-medium'}`}>
+                        {m.title}
+                      </span>
+                    </div>
+                    {m.dueDate && (
+                      <span className="text-xs text-gray-400">{new Date(m.dueDate).toLocaleDateString()}</span>
+                    )}
+                  </div>
+                ))}
+                {!project.milestones?.length && <p className="text-sm text-gray-400 text-center py-4">No milestones yet</p>}
+              </div>
+            </div>
+
+            {/* Delivery Files */}
+            <div className="card p-5">
+              <h2 className="font-bold text-[#0f172a] text-base mb-4">Delivery Files</h2>
+              <div className="space-y-2">
+                {(project.deliveryFiles || []).map((f, i) => (
+                  <a key={i} href={f.url} target="_blank" rel="noreferrer"
+                    className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl hover:bg-gray-50 transition-colors cursor-pointer">
+                    <FileText size={18} className="text-gray-400 flex-shrink-0" />
+                    <span className="text-sm text-[#0f172a] truncate">{f.name}</span>
+                  </a>
+                ))}
+                {!project.deliveryFiles?.length && <p className="text-sm text-gray-400 text-center py-4">No files yet</p>}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Tab: Messages */}
+        {activeTab === 'Messages' && (
+          <div className="card p-5">
+            <h2 className="font-bold text-[#0f172a] text-base mb-4">Project Messages</h2>
+            <MessageThread
+              projectId={id}
+              clientUserId={user?.id}
+            />
+          </div>
+        )}
       </div>
     </div>
   );

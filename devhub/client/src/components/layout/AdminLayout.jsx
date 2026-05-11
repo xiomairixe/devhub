@@ -1,22 +1,35 @@
+import { useState, useEffect } from 'react';
 import { Outlet, NavLink, useNavigate } from 'react-router-dom';
-import { LayoutDashboard, Users, FolderKanban, LogOut, Bell, Code2, ExternalLink } from 'lucide-react';
+import { LayoutDashboard, Users, FolderKanban, LogOut, Code2, ExternalLink, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 const navItems = [
-  { to: '/admin', icon: LayoutDashboard, label: 'Dashboard', end: true },
-  { to: '/admin/clients', icon: Users, label: 'Clients' },
-  { to: '/admin/projects', icon: FolderKanban, label: 'Projects' },
+  { to: '/admin',          icon: LayoutDashboard, label: 'Dashboard', end: true },
+  { to: '/admin/clients',  icon: Users,           label: 'Clients' },
+  { to: '/admin/projects', icon: FolderKanban,    label: 'Projects' },
+  { to: '/admin/messages', icon: MessageSquare,   label: 'Messages' },
 ];
 
 export default function AdminLayout() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [unread, setUnread] = useState(0);
 
-  const handleLogout = () => {
-    logout();
-    navigate('/');
-  };
+  // Poll unread count every 30s
+  useEffect(() => {
+    const fetchUnread = () => {
+      const token = localStorage.getItem('token');
+      fetch('/api/messages/unread', { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(d => setUnread(d.count || 0))
+        .catch(() => {});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, []);
 
+  const handleLogout = () => { logout(); navigate('/'); };
   const initials = user?.name?.split(' ').map(n => n[0]).join('').toUpperCase() || 'ME';
 
   return (
@@ -34,12 +47,19 @@ export default function AdminLayout() {
               <NavLink key={to} to={to} end={end}
                 className={({ isActive }) =>
                   `flex items-center gap-3 px-4 py-3 rounded-xl transition-colors font-medium text-sm ${
-                    isActive ? 'bg-amber-500 text-white' : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    isActive
+                      ? 'bg-amber-500 text-white'
+                      : 'text-slate-400 hover:bg-slate-800 hover:text-white'
                   }`
-                }
-              >
+                }>
                 <Icon size={18} />
-                {label}
+                <span className="flex-1">{label}</span>
+                {/* Unread badge on Messages nav item */}
+                {label === 'Messages' && unread > 0 && (
+                  <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                    {unread > 99 ? '99+' : unread}
+                  </span>
+                )}
               </NavLink>
             ))}
           </nav>
@@ -47,24 +67,19 @@ export default function AdminLayout() {
         <div className="mt-auto p-6 border-t border-slate-800">
           <button onClick={() => navigate('/')}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-slate-800 hover:text-white transition-colors text-sm w-full mb-1">
-            <ExternalLink size={18} />
-            Back to Site
+            <ExternalLink size={18} /> Back to Site
           </button>
           <button onClick={handleLogout}
             className="flex items-center gap-3 px-4 py-3 rounded-xl text-slate-400 hover:bg-red-900/40 hover:text-red-400 transition-colors text-sm w-full">
-            <LogOut size={18} />
-            Logout
+            <LogOut size={18} /> Logout
           </button>
         </div>
       </aside>
+
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-gray-100 px-8 py-4 flex items-center justify-between flex-shrink-0">
           <div />
           <div className="flex items-center gap-4">
-            <button className="relative p-2 text-gray-400 hover:text-gray-600">
-              <Bell size={20} />
-              <span className="absolute top-1 right-1 w-2 h-2 bg-amber-500 rounded-full" />
-            </button>
             <div className="w-9 h-9 rounded-full bg-[#0f172a] text-white flex items-center justify-center text-sm font-bold">
               {initials}
             </div>

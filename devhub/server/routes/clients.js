@@ -1,8 +1,9 @@
-const express = require('express');
-const router = express.Router();
-const Client = require('../models/Client');
-const Project = require('../models/Project');
-const auth = require('../middleware/auth');
+const express  = require('express');
+const router   = express.Router();
+const Client   = require('../models/Client');
+const Project  = require('../models/Project');
+const User     = require('../models/User');
+const auth     = require('../middleware/auth');
 
 // GET all clients
 router.get('/', auth, async (req, res) => {
@@ -23,16 +24,16 @@ router.get('/:id', auth, async (req, res) => {
   try {
     const client = await Client.findOne({ _id: req.params.id, user: req.user.id });
     if (!client) return res.status(404).json({ message: 'Client not found' });
-    
-    // Find the User account with the same email
-    const User = require('../models/User');
+
+    // Find the User account linked to this client by email
     const userAccount = await User.findOne({ email: client.email, role: 'client' });
-    
+
     const projects = await Project.find({ client: client._id });
-    res.json({ 
-      ...client.toObject(), 
+
+    res.json({
+      ...client.toObject(),
       projects,
-      userId: userAccount?._id || null
+      userId: userAccount?._id?.toString() || null  // always a string or null, never undefined
     });
   } catch {
     res.status(500).json({ message: 'Server error' });

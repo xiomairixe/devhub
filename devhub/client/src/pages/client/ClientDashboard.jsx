@@ -1,10 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  FolderKanban, CheckCircle, Calendar,
-  ChevronRight, LogOut, Code2, Plus, Clock
+  FolderKanban, CheckCircle, Calendar, ChevronRight,
+  LogOut, Code2, Plus, Clock, MessageSquare
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import MessageThread from '../../components/MessageThread';
 
 const STATUS_STYLES = {
   'In Progress': 'bg-blue-100 text-blue-700',
@@ -21,12 +22,16 @@ const INQUIRY_STATUS_STYLES = {
   'Closed Lost': 'bg-red-100 text-red-600',
 };
 
+const TABS = ['Projects', 'Messages'];
+
 export default function ClientDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [projects,  setProjects]  = useState([]);
-  const [inquiries, setInquiries] = useState([]);
-  const [loading,   setLoading]   = useState(true);
+  const [projects,   setProjects]   = useState([]);
+  const [inquiries,  setInquiries]  = useState([]);
+  const [unread,     setUnread]     = useState(0);
+  const [activeTab,  setActiveTab]  = useState('Projects');
+  const [loading,    setLoading]    = useState(true);
 
   useEffect(() => {
     const token   = localStorage.getItem('token');
@@ -35,20 +40,22 @@ export default function ClientDashboard() {
     Promise.all([
       fetch('/api/projects/my-projects', { headers }).then(r => r.json()),
       fetch('/api/inquiries/mine',        { headers }).then(r => r.json()),
-    ])
-      .then(([proj, inq]) => {
-        setProjects(Array.isArray(proj) ? proj : []);
-        // Only show inquiries not yet converted into a project
-        setInquiries(Array.isArray(inq)
-          ? inq.filter(i => i.status !== 'Converted')
-          : []);
-      })
-      .finally(() => setLoading(false));
+      fetch('/api/messages/unread/mine',  { headers }).then(r => r.json()),
+    ]).then(([proj, inq, unreadData]) => {
+      setProjects(Array.isArray(proj) ? proj : []);
+      setInquiries(Array.isArray(inq) ? inq.filter(i => i.status !== 'Converted') : []);
+      setUnread(unreadData?.count || 0);
+    }).finally(() => setLoading(false));
   }, []);
+
+  // Clear unread badge when Messages tab is opened
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    if (tab === 'Messages') setUnread(0);
+  };
 
   const activeProjects    = projects.filter(p => p.status === 'In Progress');
   const completedProjects = projects.filter(p => p.status === 'Done');
-
   const handleLogout = () => { logout(); navigate('/'); };
 
   return (
@@ -63,8 +70,7 @@ export default function ClientDashboard() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-600 font-medium">{user?.name}</span>
-          <button
-            onClick={handleLogout}
+          <button onClick={handleLogout}
             className="flex items-center gap-1.5 text-sm text-gray-400 hover:text-gray-600 transition-colors">
             <LogOut size={16} /> Sign Out
           </button>
@@ -80,8 +86,7 @@ export default function ClientDashboard() {
             </h1>
             <p className="text-gray-500 mt-1">Here's the latest on your projects.</p>
           </div>
-          <button
-            onClick={() => navigate('/portal/request')}
+          <button onClick={() => navigate('/portal/request')}
             className="btn-primary flex items-center gap-2 px-5 py-3">
             <Plus size={18} /> Request a Project
           </button>
@@ -109,83 +114,112 @@ export default function ClientDashboard() {
           </div>
         </div>
 
+        {/* Tabs */}
+        <div className="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl w-fit">
+          {TABS.map(tab => (
+            <button key={tab} onClick={() => handleTabChange(tab)}
+              className={`px-5 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 ${
+                activeTab === tab
+                  ? 'bg-white text-[#0f172a] shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
+              }`}>
+              {tab === 'Messages' && <MessageSquare size={14} />}
+              {tab}
+              {tab === 'Messages' && unread > 0 && (
+                <span className="bg-amber-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
+                  {unread}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
         {loading ? (
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-amber-500 border-t-transparent rounded-full animate-spin" />
           </div>
         ) : (
           <>
-            {/* ── Pending Requests ─────────────────────────────────── */}
-            {inquiries.length > 0 && (
-              <div className="mb-10">
-                <h2 className="text-xl font-bold text-[#0f172a] mb-4">Pending Requests</h2>
-                <div className="space-y-3">
-                  {inquiries.map(inq => (
-                    <div key={inq._id} className="card p-5 border-l-4 border-amber-400">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 mb-2">
-                            <Clock size={14} className="text-amber-500" />
-                            <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${INQUIRY_STATUS_STYLES[inq.status] || 'bg-gray-100 text-gray-600'}`}>
-                              {inq.status}
-                            </span>
+            {/* ── Tab: Projects ─────────────────────────────────────── */}
+            {activeTab === 'Projects' && (
+              <>
+                {inquiries.length > 0 && (
+                  <div className="mb-10">
+                    <h2 className="text-xl font-bold text-[#0f172a] mb-4">Pending Requests</h2>
+                    <div className="space-y-3">
+                      {inquiries.map(inq => (
+                        <div key={inq._id} className="card p-5 border-l-4 border-amber-400">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <Clock size={14} className="text-amber-500" />
+                                <span className={`text-xs font-medium px-2.5 py-0.5 rounded-full ${INQUIRY_STATUS_STYLES[inq.status] || 'bg-gray-100 text-gray-600'}`}>
+                                  {inq.status}
+                                </span>
+                              </div>
+                              <h3 className="font-bold text-[#0f172a]">{inq.projectType}</h3>
+                              {inq.budgetRange && <p className="text-sm text-gray-400 mt-0.5">Budget: {inq.budgetRange}</p>}
+                              <p className="text-sm text-gray-500 mt-1 line-clamp-2">{inq.description}</p>
+                            </div>
                           </div>
-                          <h3 className="font-bold text-[#0f172a]">{inq.projectType}</h3>
-                          {inq.budgetRange && (
-                            <p className="text-sm text-gray-400 mt-0.5">Budget: {inq.budgetRange}</p>
-                          )}
-                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">{inq.description}</p>
+                          <p className="text-xs text-gray-400 mt-3">
+                            Submitted {new Date(inq.createdAt).toLocaleDateString()}
+                          </p>
                         </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <h2 className="text-xl font-bold text-[#0f172a] mb-4">Your Projects</h2>
+                <div className="space-y-4">
+                  {projects.map(proj => (
+                    <div key={proj._id}
+                      onClick={() => navigate(`/portal/projects/${proj._id}`)}
+                      className="card p-5 cursor-pointer hover:shadow-md transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[proj.status] || 'bg-gray-100 text-gray-600'}`}>
+                          {proj.status}
+                        </span>
+                        <ChevronRight size={18} className="text-gray-300" />
                       </div>
-                      <p className="text-xs text-gray-400 mt-3">
-                        Submitted {new Date(inq.createdAt).toLocaleDateString()}
-                      </p>
+                      <h3 className="font-bold text-[#0f172a] text-lg mb-1">{proj.title}</h3>
+                      {proj.deadline && (
+                        <p className="flex items-center gap-1.5 text-sm text-gray-400 mb-4">
+                          <Calendar size={14} />
+                          Target: {new Date(proj.deadline).toLocaleDateString()}
+                        </p>
+                      )}
+                      <div className="flex items-center justify-between text-sm text-gray-500 mb-1.5">
+                        <span>Progress</span>
+                        <span className="font-medium">{proj.progress}%</span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-amber-500 rounded-full transition-all"
+                          style={{ width: `${proj.progress}%` }} />
+                      </div>
                     </div>
                   ))}
+                  {projects.length === 0 && (
+                    <div className="card py-16 text-center text-gray-400">
+                      <FolderKanban size={32} className="mx-auto mb-2 opacity-30" />
+                      <p className="text-sm">No projects yet — your approved requests will appear here.</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              </>
             )}
 
-            {/* ── Projects ──────────────────────────────────────────── */}
-            <h2 className="text-xl font-bold text-[#0f172a] mb-4">Your Projects</h2>
-            <div className="space-y-4">
-              {projects.map(proj => (
-                <div
-                  key={proj._id}
-                  onClick={() => navigate(`/portal/projects/${proj._id}`)}
-                  className="card p-5 cursor-pointer hover:shadow-md transition-shadow">
-                  <div className="flex items-start justify-between mb-3">
-                    <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${STATUS_STYLES[proj.status] || 'bg-gray-100 text-gray-600'}`}>
-                      {proj.status}
-                    </span>
-                    <ChevronRight size={18} className="text-gray-300" />
-                  </div>
-                  <h3 className="font-bold text-[#0f172a] text-lg mb-1">{proj.title}</h3>
-                  {proj.deadline && (
-                    <p className="flex items-center gap-1.5 text-sm text-gray-400 mb-4">
-                      <Calendar size={14} />
-                      Target: {new Date(proj.deadline).toLocaleDateString()}
-                    </p>
-                  )}
-                  <div className="flex items-center justify-between text-sm text-gray-500 mb-1.5">
-                    <span>Progress</span>
-                    <span className="font-medium">{proj.progress}%</span>
-                  </div>
-                  <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-amber-500 rounded-full transition-all"
-                      style={{ width: `${proj.progress}%` }} />
-                  </div>
-                </div>
-              ))}
-
-              {projects.length === 0 && (
-                <div className="card py-16 text-center text-gray-400">
-                  <FolderKanban size={32} className="mx-auto mb-2 opacity-30" />
-                  <p className="text-sm">No projects yet — your approved requests will appear here.</p>
-                </div>
-              )}
-            </div>
+            {/* ── Tab: Messages ─────────────────────────────────────── */}
+            {activeTab === 'Messages' && (
+              <div className="card p-5">
+                <h2 className="text-xl font-bold text-[#0f172a] mb-4">Direct Messages</h2>
+                <MessageThread
+                  projectId={null}
+                  clientUserId={user?.id}
+                />
+              </div>
+            )}
           </>
         )}
       </div>

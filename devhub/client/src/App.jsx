@@ -3,13 +3,14 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import Landing from './pages/Landing';
 import Dashboard from './pages/Dashboard';
 import Clients from './pages/Clients';
+import ClientDetail from './pages/ClientDetail';
+import AdminMessages from './pages/AdminMessages';
 import Projects from './pages/Projects';
 import ProjectDetail from './pages/ProjectDetail';
 import InquiryForm from './pages/InquiryForm';
 import AdminLayout from './components/layout/AdminLayout';
 import ClientDashboard from './pages/client/ClientDashboard';
 import ClientProjectDetail from './pages/client/ClientProjectDetail';
-import ClientDetail from './pages/ClientDetail';
 import ClientRequestProject from './pages/client/ClientRequestProject';
 
 function Spinner() {
@@ -59,6 +60,7 @@ export default function App() {
               <ClientRequestProject />
             </ClientRoute>
           } />
+
           {/* Admin */}
           <Route path="/admin" element={
             <AdminRoute>
@@ -67,12 +69,13 @@ export default function App() {
           }>
             <Route index element={<Dashboard />} />
             <Route path="clients" element={<Clients />} />
+            <Route path="clients/:id" element={<ClientDetail />} />   {/* ← add this */}
             <Route path="projects" element={<Projects />} />
             <Route path="projects/:id" element={<ProjectDetail />} />
-            <Route path="clients/:id" element={<ClientDetail />} />
+            <Route path="messages" element={<AdminMessages />} />
           </Route>
         </Routes>
       </BrowserRouter>
     </AuthProvider>
   );
-} 
+}
