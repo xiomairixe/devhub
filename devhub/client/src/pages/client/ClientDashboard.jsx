@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Send } from 'lucide-react';
 import { io } from 'socket.io-client';
-import { useAuth } from '../context/AuthContext';
-import api from '../utils/api';
+import { useAuth } from '../../context/AuthContext';
+import api from '../../utils/api';
 
 let socket;
 function getSocket() {
