@@ -175,10 +175,16 @@ export default function ClientProjectDetail() {
         {activeTab === 'Messages' && (
           <div className="card p-5">
             <h2 className="font-bold text-[#0f172a] text-base mb-4">Project Messages</h2>
-            <MessageThread
-              projectId={id}
-              clientUserId={user?.id}
-            />
+            {user?.id ? (
+              <MessageThread
+                projectId={id}
+                clientUserId={user.id}
+              />
+            ) : (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-amber-500 border-t-transparent rounded-full animate-spin" />
+              </div>
+            )}
           </div>
         )}
       </div>
