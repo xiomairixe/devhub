@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MessageThread from '../../components/MessageThread';
+import api from '../../utils/api';
 
 const STATUS_STYLES = {
   'In Progress': 'bg-blue-100 text-blue-700',
@@ -27,28 +28,25 @@ const TABS = ['Projects', 'Messages'];
 export default function ClientDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const [projects,   setProjects]   = useState([]);
-  const [inquiries,  setInquiries]  = useState([]);
-  const [unread,     setUnread]     = useState(0);
-  const [activeTab,  setActiveTab]  = useState('Projects');
-  const [loading,    setLoading]    = useState(true);
+  const [projects,  setProjects]  = useState([]);
+  const [inquiries, setInquiries] = useState([]);
+  const [unread,    setUnread]    = useState(0);
+  const [activeTab, setActiveTab] = useState('Projects');
+  const [loading,   setLoading]   = useState(true);
 
   useEffect(() => {
-    const token   = localStorage.getItem('token');
-    const headers = { Authorization: `Bearer ${token}` };
-
     Promise.all([
-      fetch('/api/projects/my-projects', { headers }).then(r => r.json()),
-      fetch('/api/inquiries/mine',        { headers }).then(r => r.json()),
-      fetch('/api/messages/unread/mine',  { headers }).then(r => r.json()),
-    ]).then(([proj, inq, unreadData]) => {
-      setProjects(Array.isArray(proj) ? proj : []);
-      setInquiries(Array.isArray(inq) ? inq.filter(i => i.status !== 'Converted') : []);
-      setUnread(unreadData?.count || 0);
-    }).finally(() => setLoading(false));
+      api.get('/projects/my-projects'),
+      api.get('/inquiries/mine'),
+      api.get('/messages/unread/mine'),
+    ]).then(([projRes, inqRes, unreadRes]) => {
+      setProjects(Array.isArray(projRes.data) ? projRes.data : []);
+      setInquiries(Array.isArray(inqRes.data) ? inqRes.data.filter(i => i.status !== 'Converted') : []);
+      setUnread(unreadRes.data?.count || 0);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
   }, []);
 
-  // Clear unread badge when Messages tab is opened
   const handleTabChange = (tab) => {
     setActiveTab(tab);
     if (tab === 'Messages') setUnread(0);
@@ -140,7 +138,7 @@ export default function ClientDashboard() {
           </div>
         ) : (
           <>
-            {/* ── Tab: Projects ─────────────────────────────────────── */}
+            {/* Tab: Projects */}
             {activeTab === 'Projects' && (
               <>
                 {inquiries.length > 0 && (
@@ -210,7 +208,7 @@ export default function ClientDashboard() {
               </>
             )}
 
-            {/* ── Tab: Messages ─────────────────────────────────────── */}
+            {/* Tab: Messages */}
             {activeTab === 'Messages' && (
               <div className="card p-5">
                 <h2 className="text-xl font-bold text-[#0f172a] mb-4">Direct Messages</h2>

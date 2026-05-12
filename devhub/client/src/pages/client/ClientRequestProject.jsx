@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Send, CheckCircle, Code2, LogOut, Plus } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle, Code2, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
+import api from '../../utils/api';
 
 const PROJECT_TYPES = [
   'Web Development',
@@ -40,20 +41,10 @@ export default function ClientRequestProject() {
     setError('');
     setLoading(true);
     try {
-      const token = localStorage.getItem('token');
-      const res = await fetch('/api/inquiries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`
-        },
-        body: JSON.stringify(form)
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message);
+      await api.post('/inquiries', form);
       setSuccess(true);
     } catch (err) {
-      setError(err.message || 'Something went wrong. Please try again.');
+      setError(err.response?.data?.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -130,12 +121,9 @@ export default function ClientRequestProject() {
             )}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Name + Email — pre-filled and readonly */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Full Name
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
                   <input
                     type="text"
                     value={form.name}
@@ -145,9 +133,7 @@ export default function ClientRequestProject() {
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email Address
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Email Address</label>
                   <input
                     type="email"
                     value={form.email}
@@ -158,12 +144,9 @@ export default function ClientRequestProject() {
                 </div>
               </div>
 
-              {/* Project Type + Budget */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Project Type
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Project Type</label>
                   <select
                     value={form.projectType}
                     onChange={e => setForm({ ...form, projectType: e.target.value })}
@@ -172,9 +155,7 @@ export default function ClientRequestProject() {
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Budget Range
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Budget Range</label>
                   <select
                     value={form.budgetRange}
                     onChange={e => setForm({ ...form, budgetRange: e.target.value })}
@@ -184,11 +165,8 @@ export default function ClientRequestProject() {
                 </div>
               </div>
 
-              {/* Deadline */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Target Deadline
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Target Deadline</label>
                 <input
                   type="date"
                   value={form.deadline}
@@ -197,11 +175,8 @@ export default function ClientRequestProject() {
                 />
               </div>
 
-              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Project Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Project Description</label>
                 <textarea
                   rows={5}
                   value={form.description}

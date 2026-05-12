@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MessageThread from '../../components/MessageThread';
+import api from '../../utils/api';
 
 const STATUS_STYLES = {
   'In Progress': 'bg-blue-100 text-blue-700',
@@ -25,12 +26,9 @@ export default function ClientProjectDetail() {
   const [activeTab, setActiveTab] = useState('Overview');
 
   useEffect(() => {
-    const token = localStorage.getItem('token');
-    fetch(`/api/projects/portal/${id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    })
-      .then(r => r.json())
-      .then(data => setProject(data))
+    api.get(`/projects/portal/${id}`)
+      .then(res => setProject(res.data))
+      .catch(() => setProject(null))
       .finally(() => setLoading(false));
   }, [id]);
 
