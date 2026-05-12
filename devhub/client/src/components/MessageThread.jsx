@@ -7,9 +7,7 @@ import api from '../utils/api';
 let socket;
 function getSocket() {
   if (!socket) {
-    const base =
-      import.meta.env.VITE_API_URL?.replace('/api', '') ||
-      'http://localhost:5000';
+    const base = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
     socket = io(base, { withCredentials: true });
   }
   return socket;
@@ -24,42 +22,47 @@ export default function MessageThread({ projectId, clientUserId }) {
   const bottomRef  = useRef(null);
   const pendingRef = useRef(new Set());
 
+  // Guard: don't proceed if required IDs are missing
+  const isReady = projectId ? !!projectId : !!clientUserId;
+
   const room     = projectId ? `project:${projectId}` : `direct:${clientUserId}`;
   const fetchUrl = projectId
     ? `/messages/project/${projectId}`
     : `/messages/direct/${clientUserId}`;
 
-  // Fetch initial messages
+  // Fetch initial messages — only when IDs are ready
   useEffect(() => {
-    if (!projectId && !clientUserId) return;
+    if (!isReady) {
+      setLoading(false);  // ← stop spinner if IDs never arrive
+      return;
+    }
     setLoading(true);
-    api
-      .get(fetchUrl)
+    api.get(fetchUrl)
       .then(res => setMessages(Array.isArray(res.data) ? res.data : []))
       .catch(() => setMessages([]))
       .finally(() => setLoading(false));
-  }, [fetchUrl]);
+  }, [fetchUrl, isReady]);
 
   // Socket.io — join room and listen
   useEffect(() => {
+    if (!isReady) return;
     const s = getSocket();
     s.emit('join_room', room);
 
     s.on('new_message', msg => {
       const belongs = projectId
         ? String(msg.projectId) === String(projectId)
-        : !msg.projectId &&
-          String(msg.clientUserId) === String(clientUserId);
+        : !msg.projectId && String(msg.clientUserId) === String(clientUserId);
 
       if (!belongs) return;
 
       setMessages(prev => {
         if (pendingRef.current.size > 0) {
-          const tempId = [...pendingRef.current][0];
+          const tempId  = [...pendingRef.current][0];
           const hasTemp = prev.find(m => m._id === tempId);
           if (hasTemp) {
             pendingRef.current.delete(tempId);
-            return prev.map(m => (m._id === tempId ? msg : m));
+            return prev.map(m => m._id === tempId ? msg : m);
           }
         }
         if (prev.find(m => m._id === msg._id)) return prev;
@@ -71,7 +74,7 @@ export default function MessageThread({ projectId, clientUserId }) {
       s.emit('leave_room', room);
       s.off('new_message');
     };
-  }, [room]);
+  }, [room, isReady]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -80,21 +83,20 @@ export default function MessageThread({ projectId, clientUserId }) {
 
   const handleSend = async () => {
     const trimmed = input.trim();
-    if (!trimmed || sending) return;
+    if (!trimmed || sending || !isReady) return;
     setSending(true);
     setInput('');
 
     const tempId = `temp-${Date.now()}`;
     pendingRef.current.add(tempId);
 
-    const optimistic = {
+    setMessages(prev => [...prev, {
       _id:        tempId,
       body:       trimmed,
       senderRole: user.role,
       senderId:   user.id,
       createdAt:  new Date().toISOString(),
-    };
-    setMessages(prev => [...prev, optimistic]);
+    }]);
 
     try {
       await api.post('/messages', {
@@ -120,6 +122,15 @@ export default function MessageThread({ projectId, clientUserId }) {
 
   const isMe = msg => msg.senderRole === user?.role;
 
+  // Show a clear message if IDs are missing instead of infinite spinner
+  if (!isReady) {
+    return (
+      <div className="flex items-center justify-center h-[420px] text-gray-400">
+        <p className="text-sm">Unable to load messages — missing user info.</p>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col h-[420px]">
       <div className="flex-1 overflow-y-auto space-y-3 p-4 bg-gray-50 rounded-xl mb-3">
@@ -133,27 +144,15 @@ export default function MessageThread({ projectId, clientUserId }) {
           </p>
         ) : (
           messages.map(msg => (
-            <div
-              key={msg._id}
-              className={`flex ${isMe(msg) ? 'justify-end' : 'justify-start'}`}
-            >
-              <div
-                className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
-                  isMe(msg)
-                    ? 'bg-[#0f172a] text-white rounded-br-sm'
-                    : 'bg-white text-[#0f172a] border border-gray-100 rounded-bl-sm shadow-sm'
-                }`}
-              >
+            <div key={msg._id} className={`flex ${isMe(msg) ? 'justify-end' : 'justify-start'}`}>
+              <div className={`max-w-[75%] px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${
+                isMe(msg)
+                  ? 'bg-[#0f172a] text-white rounded-br-sm'
+                  : 'bg-white text-[#0f172a] border border-gray-100 rounded-bl-sm shadow-sm'
+              }`}>
                 <p>{msg.body}</p>
-                <p
-                  className={`text-[10px] mt-1 ${
-                    isMe(msg) ? 'text-slate-400' : 'text-gray-400'
-                  }`}
-                >
-                  {new Date(msg.createdAt).toLocaleTimeString([], {
-                    hour:   '2-digit',
-                    minute: '2-digit',
-                  })}
+                <p className={`text-[10px] mt-1 ${isMe(msg) ? 'text-slate-400' : 'text-gray-400'}`}>
+                  {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </p>
               </div>
             </div>
@@ -179,8 +178,7 @@ export default function MessageThread({ projectId, clientUserId }) {
         <button
           onClick={handleSend}
           disabled={!input.trim() || sending}
-          className="flex-shrink-0 w-10 h-10 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-colors"
-        >
+          className="flex-shrink-0 w-10 h-10 bg-amber-500 hover:bg-amber-400 disabled:opacity-50 rounded-xl flex items-center justify-center transition-colors">
           <Send size={16} className="text-white" />
         </button>
       </div>
